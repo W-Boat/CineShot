@@ -2,22 +2,25 @@ package com.cineshot.app
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.SurfaceTexture
 import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.camera.core.CameraSelector
-import androidx.camera.core.Preview
-import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.cineshot.app.camera.CameraController
 import com.cineshot.app.databinding.ActivityMainBinding
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
+import com.cineshot.app.gl.VirtualViewport
 
+/**
+ * Entry point — hosts [com.cineshot.app.gl.CineGLSurfaceView] and
+ * orchestrates the CameraX → OpenGL pipeline.
+ */
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
-    private lateinit var cameraExecutor: ExecutorService
+    private lateinit var cameraController: CameraController
+    private var pendingSurfaceTexture: SurfaceTexture? = null
 
     companion object {
         private const val REQUEST_CAMERA_PERMISSION = 10
@@ -28,17 +31,22 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        cameraExecutor = Executors.newSingleThreadExecutor()
+        cameraController = CameraController(this)
 
-        if (allPermissionsGranted()) {
-            startCamera()
-        } else {
+        // GLSurfaceView notifies us once the OES texture + SurfaceTexture are ready
+        binding.glSurfaceView.onCameraTextureReady = { _, surfaceTexture ->
+            pendingSurfaceTexture = surfaceTexture
+            tryStartCamera()
+        }
+
+        if (!allPermissionsGranted()) {
             ActivityCompat.requestPermissions(
                 this,
                 arrayOf(Manifest.permission.CAMERA),
                 REQUEST_CAMERA_PERMISSION
             )
         }
+        // else: wait for GLSurfaceView → onCameraTextureReady → tryStartCamera
     }
 
     override fun onRequestPermissionsResult(
@@ -49,49 +57,37 @@ class MainActivity : AppCompatActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQUEST_CAMERA_PERMISSION) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                startCamera()
+                tryStartCamera()
             } else {
-                Toast.makeText(this, "需要相机权限才能预览", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "需要相机权限", Toast.LENGTH_LONG).show()
                 finish()
             }
         }
     }
 
     override fun onDestroy() {
+        cameraController.stop()
         super.onDestroy()
-        cameraExecutor.shutdown()
     }
 
-    private fun allPermissionsGranted(): Boolean {
-        return ContextCompat.checkSelfPermission(
-            this,
-            Manifest.permission.CAMERA
-        ) == PackageManager.PERMISSION_GRANTED
+    private fun tryStartCamera() {
+        if (!allPermissionsGranted()) return
+        val st = pendingSurfaceTexture ?: return
+        cameraController.start(st)
     }
 
-    private fun startCamera() {
-        val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
-        cameraProviderFuture.addListener({
-            val cameraProvider = cameraProviderFuture.get()
+    private fun allPermissionsGranted(): Boolean =
+        ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
+            PackageManager.PERMISSION_GRANTED
 
-            val preview = Preview.Builder()
-                .build()
-                .also { previewUseCase ->
-                    previewUseCase.setSurfaceProvider(binding.previewView.surfaceProvider)
-                }
+    // ---- Public API for cinematic controls (future use) ----
 
-            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-
-            try {
-                cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(
-                    this,
-                    cameraSelector,
-                    preview
-                )
-            } catch (e: Exception) {
-                Toast.makeText(this, "启动相机失败: ${e.message}", Toast.LENGTH_LONG).show()
-            }
-        }, ContextCompat.getMainExecutor(this))
+    fun setVirtualViewport(offsetX: Float, offsetY: Float, scale: Float, roll: Float) {
+        binding.glSurfaceView.virtualViewport = VirtualViewport(
+            offsetX = offsetX,
+            offsetY = offsetY,
+            scale = scale,
+            roll = roll
+        )
     }
 }
