@@ -3,6 +3,7 @@ package com.cineshot.app
 import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.SurfaceTexture
+import android.hardware.SensorManager
 import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -14,6 +15,7 @@ import com.cineshot.app.dolly.DollyZoomController
 import com.cineshot.app.dolly.FaceAnalyzer
 import com.cineshot.app.engine.CinematicPresets
 import com.cineshot.app.engine.MotionController
+import com.cineshot.app.stabilizer.StabilizerController
 
 class MainActivity : AppCompatActivity() {
 
@@ -21,6 +23,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var cameraController: CameraController
     private lateinit var motionController: MotionController
     private lateinit var dollyController: DollyZoomController
+    private lateinit var stabilizerController: StabilizerController
     private var pendingSurfaceTexture: SurfaceTexture? = null
 
     companion object {
@@ -32,6 +35,7 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        val sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
         cameraController = CameraController(this)
 
         // ── Motion controller (preset moves) ──────────────────────────
@@ -40,13 +44,24 @@ class MainActivity : AppCompatActivity() {
             viewportConsumer = { vp -> binding.glSurfaceView.virtualViewport = vp }
         )
 
-        // ── Dolly Zoom controller ─────────────────────────────────────
+        // ── Dolly Zoom controller (scale only) ────────────────────────
         val faceAnalyzer = FaceAnalyzer()
-        dollyController = DollyZoomController { vp ->
-            binding.glSurfaceView.virtualViewport = vp
+        dollyController = DollyZoomController { dollyVp ->
+            val cur = binding.glSurfaceView.virtualViewport
+            binding.glSurfaceView.virtualViewport = cur.copy(scale = dollyVp.scale)
         }
 
-        // Pipe CameraX image frames → ML Kit → DollyZoomController
+        // ── Stabiliser (offset + roll only) ───────────────────────────
+        stabilizerController = StabilizerController(sensorManager) { stabVp ->
+            val cur = binding.glSurfaceView.virtualViewport
+            binding.glSurfaceView.virtualViewport = cur.copy(
+                offsetX = stabVp.offsetX,
+                offsetY = stabVp.offsetY,
+                roll = stabVp.roll
+            )
+        }
+
+        // Pipe CameraX frames → ML Kit → DollyZoomController
         cameraController.onImageAvailable = { imageProxy ->
             try {
                 val faceBox = faceAnalyzer.detect(imageProxy)
@@ -96,7 +111,6 @@ class MainActivity : AppCompatActivity() {
                 override fun onStopTrackingTouch(s: android.widget.SeekBar?) {}
             }
         )
-        // Default intensity 80%
         binding.dollyIntensitySeekbar.progress = 80
 
         binding.btnVertigo.setOnClickListener {
@@ -110,6 +124,13 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // ── Stabiliser UI ─────────────────────────────────────────────
+        binding.btnStabilizer.text = stabilizerController.strength.label
+        binding.btnStabilizer.setOnClickListener {
+            val newStrength = stabilizerController.cycleStrength()
+            binding.btnStabilizer.text = newStrength.label
+        }
+
         // ── Permissions ───────────────────────────────────────────────
         if (!allPermissionsGranted()) {
             ActivityCompat.requestPermissions(
@@ -118,6 +139,16 @@ class MainActivity : AppCompatActivity() {
                 REQUEST_CAMERA_PERMISSION
             )
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        stabilizerController.start()
+    }
+
+    override fun onPause() {
+        stabilizerController.stop()
+        super.onPause()
     }
 
     override fun onRequestPermissionsResult(
