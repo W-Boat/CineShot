@@ -1,150 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
+<FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@android:color/black"
     android:keepScreenOn="true">
 
-    <!-- OpenGL camera preview (full screen behind controls) -->
+    <!-- Camera preview (behind all Compose UI) -->
     <com.cineshot.app.gl.CineGLSurfaceView
         android:id="@+id/glSurfaceView"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
 
-    <!-- Top bar: Dolly Zoom + Stabiliser + Record controls -->
-    <LinearLayout
-        android:id="@+id/topBar"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
-        android:layout_marginTop="48dp"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:background="@drawable/preset_bar_bg"
-        android:paddingStart="4dp"
-        android:paddingEnd="2dp"
-        android:paddingTop="4dp"
-        android:paddingBottom="4dp"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
+    <!-- Compose UI overlay (viewfinder, dials, buttons) -->
+    <androidx.compose.ui.platform.ComposeView
+        android:id="@+id/composeView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnRecord"
-            style="@style/PresetButton"
-            android:text="● 录制"
-            android:textColor="#FFFF4444"
-            android:layout_marginEnd="2dp" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnOrientation"
-            style="@style/PresetButton"
-            android:text="竖屏" />
-
-        <View
-            android:layout_width="1dp"
-            android:layout_height="20dp"
-            android:background="#44FFFFFF"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="2dp" />
-
-        <TextView
-            style="@style/ControlLabel"
-            android:text="强度" />
-
-        <SeekBar
-            android:id="@+id/dollyIntensitySeekbar"
-            android:layout_width="70dp"
-            android:layout_height="24dp"
-            android:max="100"
-            android:progress="80"
-            android:progressTint="@color/accent"
-            android:thumbTint="@color/accent" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnVertigo"
-            style="@style/PresetButton"
-            android:text="眩晕"
-            android:layout_marginStart="2dp" />
-
-        <View
-            android:layout_width="1dp"
-            android:layout_height="20dp"
-            android:background="#44FFFFFF"
-            android:layout_marginStart="4dp"
-            android:layout_marginEnd="2dp" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnStabilizer"
-            style="@style/PresetButton"
-            android:text="关" />
-
-    </LinearLayout>
-
-    <!-- Recording indicator -->
-    <FrameLayout
-        android:id="@+id/recordingIndicator"
-        android:layout_width="16dp"
-        android:layout_height="16dp"
-        android:layout_marginTop="56dp"
-        android:layout_marginEnd="16dp"
-        android:visibility="gone"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
-
-        <View
-            android:layout_width="12dp"
-            android:layout_height="12dp"
-            android:layout_gravity="center"
-            android:background="@drawable/recording_dot" />
-
-    </FrameLayout>
-
-    <!-- Cinematic preset bar (bottom) -->
-    <LinearLayout
-        android:id="@+id/presetBar"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="32dp"
-        android:gravity="center"
-        android:orientation="horizontal"
-        android:background="@drawable/preset_bar_bg"
-        android:padding="8dp"
-        android:elevation="8dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent">
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnPushIn"
-            style="@style/PresetButton"
-            android:text="推近" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnPullOut"
-            style="@style/PresetButton"
-            android:text="拉远" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnParallaxPan"
-            style="@style/PresetButton"
-            android:text="环绕" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnCraneUp"
-            style="@style/PresetButton"
-            android:text="摇臂" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnReset"
-            style="@style/PresetButton"
-            android:text="复位" />
-
-    </LinearLayout>
-
-</androidx.constraintlayout.widget.ConstraintLayout>
+</FrameLayout>

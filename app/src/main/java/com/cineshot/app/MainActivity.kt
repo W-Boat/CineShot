@@ -1,11 +1,14 @@
 package com.cineshot.app
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.SurfaceTexture
 import android.hardware.SensorManager
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -16,9 +19,13 @@ import com.cineshot.app.dolly.DollyZoomController
 import com.cineshot.app.dolly.FaceAnalyzer
 import com.cineshot.app.engine.CinematicPresets
 import com.cineshot.app.engine.MotionController
+import com.cineshot.app.gl.VirtualViewport
 import com.cineshot.app.recorder.MediaSaver
 import com.cineshot.app.recorder.VideoEncoder
 import com.cineshot.app.stabilizer.StabilizerController
+import com.cineshot.app.ui.FilmGateScreen
+import com.cineshot.app.ui.SplashScreen
+import com.cineshot.app.ui.theme.CineShotTheme
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -36,7 +43,26 @@ class MainActivity : AppCompatActivity() {
     // Recording
     private var videoEncoder: VideoEncoder? = null
     private var isRecording = false
-    private var isPortrait = true  // default: portrait
+    private var isPortrait = true
+    private var recordingStartMs = 0L
+    private var recordingTimeSec = 0
+    private val recordingTimer = Handler(Looper.getMainLooper())
+    private val recordingTick = object : Runnable {
+        override fun run() {
+            if (isRecording) {
+                recordingTimeSec = ((System.currentTimeMillis() - recordingStartMs) / 1000).toInt()
+                refreshCompose()
+                recordingTimer.postDelayed(this, 500)
+            }
+        }
+    }
+
+    // Compose state snapshots (updated by controllers, read by Compose)
+    private var composeScale = 1f
+    private var composeStabLabel = "关"
+    private var composeDollyActive = false
+    private var composeDollyIntensity = 0.8f
+    private var showSplash = true
 
     companion object {
         private const val REQUEST_CAMERA_PERMISSION = 10
@@ -51,20 +77,24 @@ class MainActivity : AppCompatActivity() {
         val sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
         cameraController = CameraController(this)
 
-        // ── Motion controller (preset moves) ──────────────────────────
+        // ── Motion controller ──────────────────────────────────────
         motionController = MotionController(
             viewportProvider = { binding.glSurfaceView.virtualViewport },
-            viewportConsumer = { vp -> binding.glSurfaceView.virtualViewport = vp }
+            viewportConsumer = { vp ->
+                binding.glSurfaceView.virtualViewport = vp
+                composeScale = vp.scale
+            }
         )
 
-        // ── Dolly Zoom controller (scale only) ────────────────────────
+        // ── Dolly Zoom ─────────────────────────────────────────────
         val faceAnalyzer = FaceAnalyzer()
         dollyController = DollyZoomController { dollyVp ->
             val cur = binding.glSurfaceView.virtualViewport
             binding.glSurfaceView.virtualViewport = cur.copy(scale = dollyVp.scale)
+            composeScale = dollyVp.scale
         }
 
-        // ── Stabiliser (offset + roll only) ───────────────────────────
+        // ── Stabiliser ─────────────────────────────────────────────
         stabilizerController = StabilizerController(sensorManager) { stabVp ->
             val cur = binding.glSurfaceView.virtualViewport
             binding.glSurfaceView.virtualViewport = cur.copy(
@@ -74,7 +104,6 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
-        // Pipe CameraX frames → ML Kit → DollyZoomController
         cameraController.onImageAvailable = { imageProxy ->
             try {
                 val faceBox = faceAnalyzer.detect(imageProxy)
@@ -89,71 +118,51 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Wire: GL ready → start CameraX
         binding.glSurfaceView.onCameraTextureReady = { _, surfaceTexture ->
             pendingSurfaceTexture = surfaceTexture
             tryStartCamera()
         }
 
-        // ── Preset buttons ────────────────────────────────────────────
-        binding.btnPushIn.setOnClickListener {
-            motionController.execute(CinematicPresets.PUSH_IN)
-        }
-        binding.btnPullOut.setOnClickListener {
-            motionController.execute(CinematicPresets.PULL_OUT)
-        }
-        binding.btnParallaxPan.setOnClickListener {
-            motionController.execute(CinematicPresets.PARALLAX_PAN)
-        }
-        binding.btnCraneUp.setOnClickListener {
-            motionController.execute(CinematicPresets.CRANE_UP)
-        }
-        binding.btnReset.setOnClickListener {
-            motionController.execute(CinematicPresets.RESET)
-        }
-
-        // ── Dolly Zoom UI ─────────────────────────────────────────────
-        binding.dollyIntensitySeekbar.setOnSeekBarChangeListener(
-            object : android.widget.SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(
-                    s: android.widget.SeekBar?, progress: Int, fromUser: Boolean
-                ) { dollyController.intensity = progress / 100f }
-                override fun onStartTrackingTouch(s: android.widget.SeekBar?) {}
-                override fun onStopTrackingTouch(s: android.widget.SeekBar?) {}
+        // ── Compose UI ─────────────────────────────────────────────
+        binding.composeView.setContent {
+            CineShotTheme {
+                if (showSplash) {
+                    SplashScreen(onFinished = { showSplash = false })
+                } else {
+                    FilmGateScreen(
+                        isRecording = isRecording,
+                        recordingTimeSec = recordingTimeSec,
+                        viewportScale = composeScale,
+                        dollyIntensity = composeDollyIntensity,
+                        stabilizerLabel = composeStabLabel,
+                        dollyActive = composeDollyActive,
+                        onRecordToggle = { toggleRecording() },
+                        onPresetSelect = { idx -> executePreset(idx) },
+                        onDollyIntensity = { v ->
+                            composeDollyIntensity = v
+                            dollyController.intensity = v
+                        },
+                        onVertigoToggle = {
+                            if (dollyController.isVertigoActive) {
+                                dollyController.stopVertigo()
+                                composeDollyActive = false
+                            } else {
+                                dollyController.recalibrateReference()
+                                dollyController.startVertigo()
+                                composeDollyActive = true
+                            }
+                        },
+                        onStabilizerCycle = {
+                            composeStabLabel = stabilizerController.cycleStrength().label
+                        },
+                        onGrainToggle = { /* no-op — handled inside Compose */ },
+                        onLeakToggle = { /* no-op — handled inside Compose */ }
+                    )
+                }
             }
-        )
-        binding.dollyIntensitySeekbar.progress = 80
-
-        binding.btnVertigo.setOnClickListener {
-            if (dollyController.isVertigoActive) {
-                dollyController.stopVertigo()
-                binding.btnVertigo.text = "眩晕"
-            } else {
-                dollyController.recalibrateReference()
-                dollyController.startVertigo()
-                binding.btnVertigo.text = "停止"
-            }
         }
 
-        // ── Stabiliser UI ─────────────────────────────────────────────
-        binding.btnStabilizer.text = stabilizerController.strength.label
-        binding.btnStabilizer.setOnClickListener {
-            val newStrength = stabilizerController.cycleStrength()
-            binding.btnStabilizer.text = newStrength.label
-        }
-
-        // ── Record button ─────────────────────────────────────────────
-        binding.btnRecord.setOnClickListener {
-            if (isRecording) stopRecording() else startRecording()
-        }
-
-        // ── Orientation toggle ────────────────────────────────────────
-        binding.btnOrientation.setOnClickListener {
-            isPortrait = !isPortrait
-            binding.btnOrientation.text = if (isPortrait) "竖屏" else "横屏"
-        }
-
-        // ── Permissions ───────────────────────────────────────────────
+        // ── Permissions ────────────────────────────────────────────
         if (!allPermissionsGranted()) {
             ActivityCompat.requestPermissions(
                 this,
@@ -191,6 +200,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         if (isRecording) stopRecording()
+        recordingTimer.removeCallbacks(recordingTick)
         dollyController.reset()
         motionController.cancel()
         cameraController.stop()
@@ -199,6 +209,10 @@ class MainActivity : AppCompatActivity() {
 
     // ── Recording ─────────────────────────────────────────────────────
 
+    private fun toggleRecording() {
+        if (isRecording) stopRecording() else startRecording()
+    }
+
     private fun startRecording() {
         val shader = binding.glSurfaceView.cineRenderer.shaderProgram ?: run {
             Toast.makeText(this, "GL 未就绪", Toast.LENGTH_SHORT).show()
@@ -206,9 +220,7 @@ class MainActivity : AppCompatActivity() {
         }
         val quad = binding.glSurfaceView.cineRenderer.quad ?: return
 
-        // 1080p; swap dimensions if landscape
         val (w, h) = if (isPortrait) 1080 to 1920 else 1920 to 1080
-
         val outputFile = File(
             cacheDir.resolve("videos"),
             "CINESHOT_${TIME_FMT.format(Date())}.mp4"
@@ -218,14 +230,15 @@ class MainActivity : AppCompatActivity() {
             enc.onComplete = { file -> onRecordingComplete(file) }
         }
 
-        // Must init the shared EGL context on the GL thread.
         binding.glSurfaceView.queueEvent {
             videoEncoder?.start(outputFile, w, h, 8_000_000, shader, quad)
             binding.glSurfaceView.videoEncoder = videoEncoder
             runOnUiThread {
                 isRecording = true
-                binding.btnRecord.text = "■ 停止"
-                binding.recordingIndicator.visibility = android.view.View.VISIBLE
+                recordingStartMs = System.currentTimeMillis()
+                recordingTimeSec = 0
+                recordingTimer.post(recordingTick)
+                refreshCompose()
             }
         }
     }
@@ -237,8 +250,8 @@ class MainActivity : AppCompatActivity() {
             videoEncoder = null
         }
         isRecording = false
-        binding.btnRecord.text = "● 录制"
-        binding.recordingIndicator.visibility = android.view.View.GONE
+        recordingTimer.removeCallbacks(recordingTick)
+        refreshCompose()
     }
 
     private fun onRecordingComplete(file: File) {
@@ -251,12 +264,68 @@ class MainActivity : AppCompatActivity() {
             } else {
                 Toast.makeText(this, "保存失败", Toast.LENGTH_LONG).show()
             }
-            // Clean up temp
             file.delete()
         }
     }
 
+    // ── Presets ───────────────────────────────────────────────────────
+
+    private fun executePreset(index: Int) {
+        val move = when (index) {
+            0 -> CinematicPresets.PUSH_IN
+            1 -> CinematicPresets.PULL_OUT
+            2 -> CinematicPresets.PARALLAX_PAN
+            3 -> CinematicPresets.CRANE_UP
+            4 -> CinematicPresets.RESET
+            else -> return
+        }
+        motionController.execute(move)
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────
+
+    /** Re-set Compose content to reflect changed state. */
+    private fun refreshCompose() {
+        binding.composeView.setContent {
+            CineShotTheme {
+                if (showSplash) {
+                    SplashScreen(onFinished = { showSplash = false })
+                } else {
+                    FilmGateScreen(
+                        isRecording = isRecording,
+                        recordingTimeSec = recordingTimeSec,
+                        viewportScale = composeScale,
+                        dollyIntensity = composeDollyIntensity,
+                        stabilizerLabel = composeStabLabel,
+                        dollyActive = composeDollyActive,
+                        onRecordToggle = { toggleRecording() },
+                        onPresetSelect = { idx -> executePreset(idx) },
+                        onDollyIntensity = { v ->
+                            composeDollyIntensity = v
+                            dollyController.intensity = v
+                        },
+                        onVertigoToggle = {
+                            if (dollyController.isVertigoActive) {
+                                dollyController.stopVertigo()
+                                composeDollyActive = false
+                            } else {
+                                dollyController.recalibrateReference()
+                                dollyController.startVertigo()
+                                composeDollyActive = true
+                            }
+                            refreshCompose()
+                        },
+                        onStabilizerCycle = {
+                            composeStabLabel = stabilizerController.cycleStrength().label
+                            refreshCompose()
+                        },
+                        onGrainToggle = { refreshCompose() },
+                        onLeakToggle = { refreshCompose() }
+                    )
+                }
+            }
+        }
+    }
 
     private fun tryStartCamera() {
         if (!allPermissionsGranted()) return
