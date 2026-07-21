@@ -10,15 +10,17 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.cineshot.app.camera.CameraController
 import com.cineshot.app.databinding.ActivityMainBinding
+import com.cineshot.app.dolly.DollyZoomController
+import com.cineshot.app.dolly.FaceAnalyzer
 import com.cineshot.app.engine.CinematicPresets
 import com.cineshot.app.engine.MotionController
-import com.cineshot.app.gl.VirtualViewport
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var cameraController: CameraController
     private lateinit var motionController: MotionController
+    private lateinit var dollyController: DollyZoomController
     private var pendingSurfaceTexture: SurfaceTexture? = null
 
     companion object {
@@ -32,19 +34,40 @@ class MainActivity : AppCompatActivity() {
 
         cameraController = CameraController(this)
 
-        // Motion controller bridges the GLSurfaceView viewport
+        // ── Motion controller (preset moves) ──────────────────────────
         motionController = MotionController(
             viewportProvider = { binding.glSurfaceView.virtualViewport },
             viewportConsumer = { vp -> binding.glSurfaceView.virtualViewport = vp }
         )
 
-        // Wire: once GL is ready → start CameraX
+        // ── Dolly Zoom controller ─────────────────────────────────────
+        val faceAnalyzer = FaceAnalyzer()
+        dollyController = DollyZoomController { vp ->
+            binding.glSurfaceView.virtualViewport = vp
+        }
+
+        // Pipe CameraX image frames → ML Kit → DollyZoomController
+        cameraController.onImageAvailable = { imageProxy ->
+            try {
+                val faceBox = faceAnalyzer.detect(imageProxy)
+                if (faceBox != null) {
+                    dollyController.onFaceDetected(
+                        faceBox.width().toFloat(),
+                        faceBox.height().toFloat()
+                    )
+                }
+            } finally {
+                imageProxy.close()
+            }
+        }
+
+        // Wire: GL ready → start CameraX
         binding.glSurfaceView.onCameraTextureReady = { _, surfaceTexture ->
             pendingSurfaceTexture = surfaceTexture
             tryStartCamera()
         }
 
-        // ── Preset buttons ──────────────────────────────────────────
+        // ── Preset buttons ────────────────────────────────────────────
         binding.btnPushIn.setOnClickListener {
             motionController.execute(CinematicPresets.PUSH_IN)
         }
@@ -61,7 +84,33 @@ class MainActivity : AppCompatActivity() {
             motionController.execute(CinematicPresets.RESET)
         }
 
-        // ── Permissions ─────────────────────────────────────────────
+        // ── Dolly Zoom UI ─────────────────────────────────────────────
+        binding.dollyIntensitySeekbar.setOnSeekBarChangeListener(
+            object : android.widget.SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(
+                    s: android.widget.SeekBar?, progress: Int, fromUser: Boolean
+                ) {
+                    dollyController.intensity = progress / 100f
+                }
+                override fun onStartTrackingTouch(s: android.widget.SeekBar?) {}
+                override fun onStopTrackingTouch(s: android.widget.SeekBar?) {}
+            }
+        )
+        // Default intensity 80%
+        binding.dollyIntensitySeekbar.progress = 80
+
+        binding.btnVertigo.setOnClickListener {
+            if (dollyController.isVertigoActive) {
+                dollyController.stopVertigo()
+                binding.btnVertigo.text = "眩晕变焦"
+            } else {
+                dollyController.recalibrateReference()
+                dollyController.startVertigo()
+                binding.btnVertigo.text = "停止"
+            }
+        }
+
+        // ── Permissions ───────────────────────────────────────────────
         if (!allPermissionsGranted()) {
             ActivityCompat.requestPermissions(
                 this,
@@ -88,6 +137,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        dollyController.reset()
         motionController.cancel()
         cameraController.stop()
         super.onDestroy()

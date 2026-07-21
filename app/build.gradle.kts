@@ -54,4 +54,7 @@ dependencies {
 
     // Material
     implementation("com.google.android.material:material:1.11.0")
+
+    // ML Kit — bundled face detection (no network download needed)
+    implementation("com.google.mlkit:face-detection:16.1.7")
 }

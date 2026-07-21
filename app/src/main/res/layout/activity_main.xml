@@ -7,7 +7,7 @@
     android:background="@android:color/black"
     android:keepScreenOn="true">
 
-    <!-- OpenGL camera preview (full screen behind buttons) -->
+    <!-- OpenGL camera preview (full screen behind controls) -->
     <com.cineshot.app.gl.CineGLSurfaceView
         android:id="@+id/glSurfaceView"
         android:layout_width="0dp"
@@ -17,7 +17,49 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- Cinematic preset bar (floating bottom) -->
+    <!-- Dolly Zoom control bar (top-left) -->
+    <LinearLayout
+        android:id="@+id/dollyBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="48dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:background="@drawable/preset_bar_bg"
+        android:paddingStart="8dp"
+        android:paddingEnd="4dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="强度"
+            android:textColor="@color/white"
+            android:textSize="12sp"
+            android:layout_marginEnd="4dp" />
+
+        <SeekBar
+            android:id="@+id/dollyIntensitySeekbar"
+            android:layout_width="100dp"
+            android:layout_height="24dp"
+            android:max="100"
+            android:progress="80"
+            android:progressTint="@color/accent"
+            android:thumbTint="@color/accent" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnVertigo"
+            style="@style/PresetButton"
+            android:text="眩晕变焦"
+            android:layout_marginStart="4dp" />
+
+    </LinearLayout>
+
+    <!-- Cinematic preset bar (bottom) -->
     <LinearLayout
         android:id="@+id/presetBar"
         android:layout_width="wrap_content"
