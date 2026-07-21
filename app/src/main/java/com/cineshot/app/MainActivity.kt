@@ -10,16 +10,15 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.cineshot.app.camera.CameraController
 import com.cineshot.app.databinding.ActivityMainBinding
+import com.cineshot.app.engine.CinematicPresets
+import com.cineshot.app.engine.MotionController
 import com.cineshot.app.gl.VirtualViewport
 
-/**
- * Entry point — hosts [com.cineshot.app.gl.CineGLSurfaceView] and
- * orchestrates the CameraX → OpenGL pipeline.
- */
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var cameraController: CameraController
+    private lateinit var motionController: MotionController
     private var pendingSurfaceTexture: SurfaceTexture? = null
 
     companion object {
@@ -33,12 +32,36 @@ class MainActivity : AppCompatActivity() {
 
         cameraController = CameraController(this)
 
-        // GLSurfaceView notifies us once the OES texture + SurfaceTexture are ready
+        // Motion controller bridges the GLSurfaceView viewport
+        motionController = MotionController(
+            viewportProvider = { binding.glSurfaceView.virtualViewport },
+            viewportConsumer = { vp -> binding.glSurfaceView.virtualViewport = vp }
+        )
+
+        // Wire: once GL is ready → start CameraX
         binding.glSurfaceView.onCameraTextureReady = { _, surfaceTexture ->
             pendingSurfaceTexture = surfaceTexture
             tryStartCamera()
         }
 
+        // ── Preset buttons ──────────────────────────────────────────
+        binding.btnPushIn.setOnClickListener {
+            motionController.execute(CinematicPresets.PUSH_IN)
+        }
+        binding.btnPullOut.setOnClickListener {
+            motionController.execute(CinematicPresets.PULL_OUT)
+        }
+        binding.btnParallaxPan.setOnClickListener {
+            motionController.execute(CinematicPresets.PARALLAX_PAN)
+        }
+        binding.btnCraneUp.setOnClickListener {
+            motionController.execute(CinematicPresets.CRANE_UP)
+        }
+        binding.btnReset.setOnClickListener {
+            motionController.execute(CinematicPresets.RESET)
+        }
+
+        // ── Permissions ─────────────────────────────────────────────
         if (!allPermissionsGranted()) {
             ActivityCompat.requestPermissions(
                 this,
@@ -46,7 +69,6 @@ class MainActivity : AppCompatActivity() {
                 REQUEST_CAMERA_PERMISSION
             )
         }
-        // else: wait for GLSurfaceView → onCameraTextureReady → tryStartCamera
     }
 
     override fun onRequestPermissionsResult(
@@ -66,6 +88,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        motionController.cancel()
         cameraController.stop()
         super.onDestroy()
     }
@@ -79,15 +102,4 @@ class MainActivity : AppCompatActivity() {
     private fun allPermissionsGranted(): Boolean =
         ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
-
-    // ---- Public API for cinematic controls (future use) ----
-
-    fun setVirtualViewport(offsetX: Float, offsetY: Float, scale: Float, roll: Float) {
-        binding.glSurfaceView.virtualViewport = VirtualViewport(
-            offsetX = offsetX,
-            offsetY = offsetY,
-            scale = scale,
-            roll = roll
-        )
-    }
 }
