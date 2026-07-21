@@ -5,6 +5,7 @@ import android.opengl.GLES11Ext
 import android.opengl.GLES20
 import android.opengl.GLSurfaceView
 import android.util.Log
+import com.cineshot.app.recorder.VideoEncoder
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
@@ -15,14 +16,15 @@ import javax.microedition.khronos.opengles.GL10
  * Pipeline:
  *   CameraX → SurfaceTexture (OES) → fragment shader → screen quad
  *
- * The shader applies [virtualViewport] transforms (pan, zoom, roll) each frame.
+ * When recording is active the same scene is rendered a second time
+ * into [videoEncoder]'s EGL surface (MediaCodec input).
  */
 class CineGLRenderer : GLSurfaceView.Renderer {
 
     companion object {
         private const val TAG = "CineGLRenderer"
 
-        private const val VERTEX_SHADER = """
+        const val VERTEX_SHADER = """
             attribute vec4 aPosition;
             attribute vec4 aTextureCoord;
             varying vec2 vTexCoord;
@@ -32,7 +34,7 @@ class CineGLRenderer : GLSurfaceView.Renderer {
             }
         """
 
-        private const val FRAGMENT_SHADER_OES = """
+        const val FRAGMENT_SHADER_OES = """
             #extension GL_OES_EGL_image_external : require
             precision mediump float;
 
@@ -78,32 +80,35 @@ class CineGLRenderer : GLSurfaceView.Renderer {
     @Volatile
     var virtualViewport = VirtualViewport()
 
+    /** Set externally to enable recording on the GL thread. */
+    @Volatile
+    var videoEncoder: VideoEncoder? = null
+
+    val shaderProgram: ShaderProgram? get() = shader
+    val quad: FullScreenQuad? get() = fullQuad
+
     // ------------------------------------------------------------------
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
         Log.d(TAG, "onSurfaceCreated")
 
-        // Create the OES texture that will receive camera frames
         cameraTextureId = createOESTexture()
 
         surfaceTexture = SurfaceTexture(cameraTextureId).apply {
             setOnFrameAvailableListener(
                 { frameAvailable.set(true) },
-                null // use GL thread handler
+                null
             )
         }
 
-        // Compile shader + create full-screen geometry
         shader = ShaderProgram(VERTEX_SHADER, FRAGMENT_SHADER_OES)
         fullQuad = FullScreenQuad()
 
-        // Wire default texture unit
         shader!!.use()
         shader!!.setUniform1i("uTexture", 0)
 
         GLES20.glClearColor(0f, 0f, 0f, 1f)
 
-        // Notify that camera can start feeding this SurfaceTexture
         surfaceTexture?.let { st ->
             onCameraTextureReady?.invoke(cameraTextureId, st)
         }
@@ -117,13 +122,30 @@ class CineGLRenderer : GLSurfaceView.Renderer {
     }
 
     override fun onDrawFrame(gl: GL10?) {
-        // Consume the latest camera frame if available (non-blocking)
         if (frameAvailable.getAndSet(false)) {
             surfaceTexture?.updateTexImage()
         }
 
+        // ── Render to screen ──────────────────────────────────────
+        GLES20.glViewport(0, 0, viewportWidth, viewportHeight)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+        renderScene()
 
+        // ── Render to encoder (if recording) ─────────────────────
+        val encoder = videoEncoder
+        if (encoder != null && encoder.recording) {
+            if (encoder.beginFrame()) {
+                renderScene()
+                encoder.endFrame()
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Shared rendering (screen + encoder reuse)
+    // ------------------------------------------------------------------
+
+    private fun renderScene() {
         val vp = virtualViewport
         val prog = shader ?: return
         val quad = fullQuad ?: return

@@ -3,6 +3,7 @@ package com.cineshot.app.gl
 import android.content.Context
 import android.opengl.GLSurfaceView
 import android.util.AttributeSet
+import com.cineshot.app.recorder.VideoEncoder
 
 /**
  * GLSurfaceView configured for camera preview at high frame rate.
@@ -27,10 +28,15 @@ class CineGLSurfaceView @JvmOverloads constructor(
         get() = cineRenderer.onCameraTextureReady
         set(value) { cineRenderer.onCameraTextureReady = value }
 
+    /** Attach / detach a [VideoEncoder] for recording. */
+    var videoEncoder: VideoEncoder?
+        get() = cineRenderer.videoEncoder
+        set(value) { cineRenderer.videoEncoder = value }
+
     init {
         setEGLContextClientVersion(2)
         setRenderer(cineRenderer)
-        // Continuous render for 60fps preview
+        // Continuous render for 60fps preview + recording
         renderMode = RENDERMODE_CONTINUOUSLY
     }
 }

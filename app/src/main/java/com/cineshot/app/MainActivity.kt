@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.SurfaceTexture
 import android.hardware.SensorManager
+import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -15,7 +16,13 @@ import com.cineshot.app.dolly.DollyZoomController
 import com.cineshot.app.dolly.FaceAnalyzer
 import com.cineshot.app.engine.CinematicPresets
 import com.cineshot.app.engine.MotionController
+import com.cineshot.app.recorder.MediaSaver
+import com.cineshot.app.recorder.VideoEncoder
 import com.cineshot.app.stabilizer.StabilizerController
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
@@ -26,8 +33,14 @@ class MainActivity : AppCompatActivity() {
     private lateinit var stabilizerController: StabilizerController
     private var pendingSurfaceTexture: SurfaceTexture? = null
 
+    // Recording
+    private var videoEncoder: VideoEncoder? = null
+    private var isRecording = false
+    private var isPortrait = true  // default: portrait
+
     companion object {
         private const val REQUEST_CAMERA_PERMISSION = 10
+        private val TIME_FMT = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -104,9 +117,7 @@ class MainActivity : AppCompatActivity() {
             object : android.widget.SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(
                     s: android.widget.SeekBar?, progress: Int, fromUser: Boolean
-                ) {
-                    dollyController.intensity = progress / 100f
-                }
+                ) { dollyController.intensity = progress / 100f }
                 override fun onStartTrackingTouch(s: android.widget.SeekBar?) {}
                 override fun onStopTrackingTouch(s: android.widget.SeekBar?) {}
             }
@@ -116,7 +127,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnVertigo.setOnClickListener {
             if (dollyController.isVertigoActive) {
                 dollyController.stopVertigo()
-                binding.btnVertigo.text = "眩晕变焦"
+                binding.btnVertigo.text = "眩晕"
             } else {
                 dollyController.recalibrateReference()
                 dollyController.startVertigo()
@@ -129,6 +140,17 @@ class MainActivity : AppCompatActivity() {
         binding.btnStabilizer.setOnClickListener {
             val newStrength = stabilizerController.cycleStrength()
             binding.btnStabilizer.text = newStrength.label
+        }
+
+        // ── Record button ─────────────────────────────────────────────
+        binding.btnRecord.setOnClickListener {
+            if (isRecording) stopRecording() else startRecording()
+        }
+
+        // ── Orientation toggle ────────────────────────────────────────
+        binding.btnOrientation.setOnClickListener {
+            isPortrait = !isPortrait
+            binding.btnOrientation.text = if (isPortrait) "竖屏" else "横屏"
         }
 
         // ── Permissions ───────────────────────────────────────────────
@@ -168,11 +190,73 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        if (isRecording) stopRecording()
         dollyController.reset()
         motionController.cancel()
         cameraController.stop()
         super.onDestroy()
     }
+
+    // ── Recording ─────────────────────────────────────────────────────
+
+    private fun startRecording() {
+        val shader = binding.glSurfaceView.cineRenderer.shaderProgram ?: run {
+            Toast.makeText(this, "GL 未就绪", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val quad = binding.glSurfaceView.cineRenderer.quad ?: return
+
+        // 1080p; swap dimensions if landscape
+        val (w, h) = if (isPortrait) 1080 to 1920 else 1920 to 1080
+
+        val outputFile = File(
+            cacheDir.resolve("videos"),
+            "CINESHOT_${TIME_FMT.format(Date())}.mp4"
+        ).also { it.parentFile?.mkdirs() }
+
+        videoEncoder = VideoEncoder().also { enc ->
+            enc.onComplete = { file -> onRecordingComplete(file) }
+        }
+
+        // Must init the shared EGL context on the GL thread.
+        binding.glSurfaceView.queueEvent {
+            videoEncoder?.start(outputFile, w, h, 8_000_000, shader, quad)
+            binding.glSurfaceView.videoEncoder = videoEncoder
+            runOnUiThread {
+                isRecording = true
+                binding.btnRecord.text = "■ 停止"
+                binding.recordingIndicator.visibility = android.view.View.VISIBLE
+            }
+        }
+    }
+
+    private fun stopRecording() {
+        binding.glSurfaceView.queueEvent {
+            videoEncoder?.stop()
+            binding.glSurfaceView.videoEncoder = null
+            videoEncoder = null
+        }
+        isRecording = false
+        binding.btnRecord.text = "● 录制"
+        binding.recordingIndicator.visibility = android.view.View.GONE
+    }
+
+    private fun onRecordingComplete(file: File) {
+        val uri = MediaSaver.saveToGallery(this, file)
+        runOnUiThread {
+            if (uri != null) {
+                Toast.makeText(this, "已保存到相册", Toast.LENGTH_SHORT).show()
+                val share = MediaSaver.createShareIntent(uri)
+                startActivity(Intent.createChooser(share, "分享视频"))
+            } else {
+                Toast.makeText(this, "保存失败", Toast.LENGTH_LONG).show()
+            }
+            // Clean up temp
+            file.delete()
+        }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────
 
     private fun tryStartCamera() {
         if (!allPermissionsGranted()) return

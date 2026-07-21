@@ -17,22 +17,41 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- Top bar: Dolly Zoom controls + Stabiliser toggle -->
+    <!-- Top bar: Dolly Zoom + Stabiliser + Record controls -->
     <LinearLayout
-        android:id="@+id/dollyBar"
+        android:id="@+id/topBar"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="12dp"
+        android:layout_marginStart="8dp"
         android:layout_marginTop="48dp"
         android:gravity="center_vertical"
         android:orientation="horizontal"
         android:background="@drawable/preset_bar_bg"
-        android:paddingStart="6dp"
+        android:paddingStart="4dp"
         android:paddingEnd="2dp"
         android:paddingTop="4dp"
         android:paddingBottom="4dp"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnRecord"
+            style="@style/PresetButton"
+            android:text="● 录制"
+            android:textColor="#FFFF4444"
+            android:layout_marginEnd="2dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnOrientation"
+            style="@style/PresetButton"
+            android:text="竖屏" />
+
+        <View
+            android:layout_width="1dp"
+            android:layout_height="20dp"
+            android:background="#44FFFFFF"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="2dp" />
 
         <TextView
             style="@style/ControlLabel"
@@ -40,7 +59,7 @@
 
         <SeekBar
             android:id="@+id/dollyIntensitySeekbar"
-            android:layout_width="80dp"
+            android:layout_width="70dp"
             android:layout_height="24dp"
             android:max="100"
             android:progress="80"
@@ -50,15 +69,15 @@
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnVertigo"
             style="@style/PresetButton"
-            android:text="眩晕变焦"
+            android:text="眩晕"
             android:layout_marginStart="2dp" />
 
         <View
             android:layout_width="1dp"
             android:layout_height="20dp"
             android:background="#44FFFFFF"
-            android:layout_marginStart="6dp"
-            android:layout_marginEnd="4dp" />
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="2dp" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnStabilizer"
@@ -66,6 +85,25 @@
             android:text="关" />
 
     </LinearLayout>
+
+    <!-- Recording indicator -->
+    <FrameLayout
+        android:id="@+id/recordingIndicator"
+        android:layout_width="16dp"
+        android:layout_height="16dp"
+        android:layout_marginTop="56dp"
+        android:layout_marginEnd="16dp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <View
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:layout_gravity="center"
+            android:background="@drawable/recording_dot" />
+
+    </FrameLayout>
 
     <!-- Cinematic preset bar (bottom) -->
     <LinearLayout
