@@ -73,7 +73,7 @@ fun SplashScreen(onFinished: () -> Unit) {
                 brush = Brush.radialGradient(
                     colors = listOf(Color.Transparent, FilmBlack),
                     center = center,
-                    radius = irisRadius
+                    radius = maxOf(irisRadius, 1f)
                 ),
                 radius = size.maxDimension,
                 center = center
