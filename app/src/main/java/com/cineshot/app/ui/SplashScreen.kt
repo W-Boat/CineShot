@@ -102,7 +102,8 @@ fun SplashScreen(onFinished: () -> Unit) {
             // Subtle sprocket holes scrolling (simplified)
             if (reveal) {
                 val holesY = (irisRadius / 10f) % 40f
-                for (y in -40f..size.height + 40f step 40f) {
+                var y = -40f
+                while (y <= size.height + 40f) {
                     drawCircle(
                         color = FilmTan.copy(alpha = 0.15f),
                         radius = 5f,
@@ -113,6 +114,7 @@ fun SplashScreen(onFinished: () -> Unit) {
                         radius = 5f,
                         center = Offset(size.width - 20f, y + holesY)
                     )
+                    y += 40f
                 }
             }
         }
