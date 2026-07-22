@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Camera body -->
+    <path
+        android:fillColor="#FFE94560"
+        android:pathData="M34,38 L40,32 L68,32 L74,38 L82,38 C86.4,38 90,41.6 90,46 L90,78 C90,82.4 86.4,86 82,86 L26,86 C21.6,86 18,82.4 18,78 L18,46 C18,41.6 21.6,38 26,38 L34,38 Z" />
+
+    <!-- Lens ring -->
+    <path
+        android:fillColor="#FF1A1A2E"
+        android:pathData="M54,55 C60.6,55 66,60.4 66,67 C66,73.6 60.6,79 54,79 C47.4,79 42,73.6 42,67 C42,60.4 47.4,55 54,55 Z" />
+
+    <!-- Lens inner -->
+    <path
+        android:fillColor="#FFE94560"
+        android:pathData="M54,59 C58.4,59 62,62.6 62,67 C62,71.4 58.4,75 54,75 C49.6,75 46,71.4 46,67 C46,62.6 49.6,59 54,59 Z" />
+
+    <!-- Film reel top-left -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M22,42 L22,42 C23.1,42 24,42.9 24,44 L24,44 C24,45.1 23.1,46 22,46 L22,46 C20.9,46 20,45.1 20,44 L20,44 C20,42.9 20.9,42 22,42 Z" />
+
+    <!-- Film reel top-right -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M86,42 L86,42 C87.1,42 88,42.9 88,44 L88,44 C88,45.1 87.1,46 86,46 L86,46 C84.9,46 84,45.1 84,44 L84,44 C84,42.9 84.9,42 86,42 Z" />
+
+    <!-- Film reel bottom-right -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M86,78 L86,78 C87.1,78 88,78.9 88,80 L88,80 C88,81.1 87.1,82 86,82 L86,82 C84.9,82 84,81.1 84,80 L84,80 C84,78.9 84.9,78 86,78 Z" />
+</vector>

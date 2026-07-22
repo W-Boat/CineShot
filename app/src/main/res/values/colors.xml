@@ -2,7 +2,6 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
-    <color name="accent">#FFD4AF37</color>
-    <color name="button_text">#FFFFFFFF</color>
-    <color name="button_bg">#44FFFFFF</color>
+    <color name="ic_launcher_background">#FF1A1A2E</color>
+    <color name="ic_launcher_foreground">#FFE94560</color>
 </resources>

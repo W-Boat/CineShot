@@ -1,42 +1,46 @@
 # CineShot 🎬
 
-模拟电影运镜与电影变焦质感的 Android 相机 App。
+**CineShot** is an Android camera app that simulates cinematic camera movement and film-like zoom aesthetics.
 
-## 构建方式
+> 🏗️ **Early stage** — currently a camera preview shell. Photo capture, video recording, OpenGL filters, and MediaCodec processing are coming next.
 
-本项目通过 **GitHub Actions** 自动构建，不在本地编译。
+## Tech Stack
 
-每次 push 到 `main` 分支或发起 Pull Request 时，CI 会自动执行 `./gradlew assembleDebug` 并上传 `app-debug.apk`。
+- **Language:** Kotlin
+- **Camera:** CameraX
+- **Graphics:** OpenGL ES (planned)
+- **Encoding:** MediaCodec (planned)
+- **Min SDK:** 26 &nbsp;|&nbsp; **Target SDK:** 34
 
-## 技术栈
+## Build
 
-- **Kotlin** — 主语言
-- **CameraX** — 相机预览与采集
-- **OpenGL ES** — 实时滤镜与运镜模拟（计划中）
-- **MediaCodec** — 视频编码（计划中）
-- **Android 8.0+** (API 26)
+This project is built exclusively via **GitHub Actions**. No local builds are required — push to `main` or open a PR and CI will produce the APK.
 
-## 项目结构
+[![Build](https://github.com/YOUR_ORG/CineShot/actions/workflows/build.yml/badge.svg)](https://github.com/YOUR_ORG/CineShot/actions/workflows/build.yml)
 
+### CI workflow
+
+Every push to `main` and every pull request triggers `.github/workflows/build.yml`:
+
+1. Checkout
+2. Set up JDK 17 (Temurin)
+3. Generate Gradle Wrapper (8.5)
+4. `./gradlew assembleDebug`
+5. Upload `app-debug.apk` as a workflow artifact
+
+## Getting Started (local development)
+
+```bash
+# 1. Clone
+git clone https://github.com/YOUR_ORG/CineShot.git
+cd CineShot
+
+# 2. Let CI build for you, or generate the wrapper locally (one-time):
+#    Download Gradle 8.5, unzip, then run:
+#    /path/to/gradle-8.5/bin/gradle wrapper --gradle-version 8.5
+
+# 3. Open in Android Studio — it will sync and you can edit / lint as usual.
 ```
-CineShot/
-├── .github/workflows/build.yml   # CI 配置
-├── app/
-│   ├── build.gradle.kts
-│   └── src/main/
-│       ├── AndroidManifest.xml
-│       └── java/com/cineshot/app/
-│           └── MainActivity.kt   # 相机预览入口
-├── build.gradle.kts              # 项目级构建
-├── settings.gradle.kts
-└── gradle.properties
-```
-
-## 本地开发
-
-1. 用 Android Studio 打开项目根目录
-2. 等待 Gradle sync 完成
-3. 选择设备运行
 
 ## License
 

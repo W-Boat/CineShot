@@ -3,18 +3,10 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@android:color/black"
-    android:keepScreenOn="true">
+    android:background="@android:color/black">
 
-    <!-- OpenCamera native GL pipeline (Camera2 + OpenGL ES via C++) -->
-    <com.atech.glcamera.views.GLCameraView
-        android:id="@+id/glCameraView"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent" />
-
-    <!-- CineShot Compose UI overlay (viewfinder, dials, shutter) -->
-    <androidx.compose.ui.platform.ComposeView
-        android:id="@+id/composeView"
+    <androidx.camera.view.PreviewView
+        android:id="@+id/previewView"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 

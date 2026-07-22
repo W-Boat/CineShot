@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">CineShot</string>
+    <string name="camera_permission_required">需要相机权限才能使用</string>
+    <string name="camera_bind_failed">无法打开相机</string>
 </resources>
