@@ -57,7 +57,7 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.8.2")
 
     // OpenCamera — Camera2 + OpenGL ES native engine
-    implementation("com.github.moo611:OpenCamera:1.0.7")
+    implementation("com.github.moo611:opencamera-for-android:027bbd5")
 
     // AndroidX
     implementation("androidx.core:core-ktx:1.12.0")
