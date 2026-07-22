@@ -5,12 +5,14 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.SurfaceTexture
 import android.hardware.SensorManager
-import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.cineshot.app.camera.CameraController
@@ -19,7 +21,6 @@ import com.cineshot.app.dolly.DollyZoomController
 import com.cineshot.app.dolly.FaceAnalyzer
 import com.cineshot.app.engine.CinematicPresets
 import com.cineshot.app.engine.MotionController
-import com.cineshot.app.gl.VirtualViewport
 import com.cineshot.app.recorder.MediaSaver
 import com.cineshot.app.recorder.VideoEncoder
 import com.cineshot.app.stabilizer.StabilizerController
@@ -40,29 +41,29 @@ class MainActivity : AppCompatActivity() {
     private lateinit var stabilizerController: StabilizerController
     private var pendingSurfaceTexture: SurfaceTexture? = null
 
-    // Recording
+    // Recording (non-Compose)
     private var videoEncoder: VideoEncoder? = null
-    private var isRecording = false
     private var isPortrait = true
     private var recordingStartMs = 0L
-    private var recordingTimeSec = 0
     private val recordingTimer = Handler(Looper.getMainLooper())
+
+    // Compose-reactive state — changes trigger automatic recomposition
+    private var showSplash by mutableStateOf(true)
+    private var isRecording by mutableStateOf(false)
+    private var recordingTimeSec by mutableStateOf(0)
+    private var composeScale by mutableStateOf(1f)
+    private var composeStabLabel by mutableStateOf("关")
+    private var composeDollyActive by mutableStateOf(false)
+    private var composeDollyIntensity by mutableStateOf(0.8f)
+
     private val recordingTick = object : Runnable {
         override fun run() {
             if (isRecording) {
                 recordingTimeSec = ((System.currentTimeMillis() - recordingStartMs) / 1000).toInt()
-                refreshCompose()
                 recordingTimer.postDelayed(this, 500)
             }
         }
     }
-
-    // Compose state snapshots (updated by controllers, read by Compose)
-    private var composeScale = 1f
-    private var composeStabLabel = "关"
-    private var composeDollyActive = false
-    private var composeDollyIntensity = 0.8f
-    private var showSplash = true
 
     companion object {
         private const val REQUEST_CAMERA_PERMISSION = 10
@@ -77,7 +78,6 @@ class MainActivity : AppCompatActivity() {
         val sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
         cameraController = CameraController(this)
 
-        // ── Motion controller ──────────────────────────────────────
         motionController = MotionController(
             viewportProvider = { binding.glSurfaceView.virtualViewport },
             viewportConsumer = { vp ->
@@ -86,7 +86,6 @@ class MainActivity : AppCompatActivity() {
             }
         )
 
-        // ── Dolly Zoom ─────────────────────────────────────────────
         val faceAnalyzer = FaceAnalyzer()
         dollyController = DollyZoomController { dollyVp ->
             val cur = binding.glSurfaceView.virtualViewport
@@ -94,7 +93,6 @@ class MainActivity : AppCompatActivity() {
             composeScale = dollyVp.scale
         }
 
-        // ── Stabiliser ─────────────────────────────────────────────
         stabilizerController = StabilizerController(sensorManager) { stabVp ->
             val cur = binding.glSurfaceView.virtualViewport
             binding.glSurfaceView.virtualViewport = cur.copy(
@@ -123,7 +121,7 @@ class MainActivity : AppCompatActivity() {
             tryStartCamera()
         }
 
-        // ── Compose UI ─────────────────────────────────────────────
+        // ── Compose UI (set once — state changes trigger recomposition) ─
         binding.composeView.setContent {
             CineShotTheme {
                 if (showSplash) {
@@ -155,14 +153,13 @@ class MainActivity : AppCompatActivity() {
                         onStabilizerCycle = {
                             composeStabLabel = stabilizerController.cycleStrength().label
                         },
-                        onGrainToggle = { /* no-op — handled inside Compose */ },
-                        onLeakToggle = { /* no-op — handled inside Compose */ }
+                        onGrainToggle = { /* handled inside Compose */ },
+                        onLeakToggle = { /* handled inside Compose */ }
                     )
                 }
             }
         }
 
-        // ── Permissions ────────────────────────────────────────────
         if (!allPermissionsGranted()) {
             ActivityCompat.requestPermissions(
                 this,
@@ -238,7 +235,6 @@ class MainActivity : AppCompatActivity() {
                 recordingStartMs = System.currentTimeMillis()
                 recordingTimeSec = 0
                 recordingTimer.post(recordingTick)
-                refreshCompose()
             }
         }
     }
@@ -251,7 +247,6 @@ class MainActivity : AppCompatActivity() {
         }
         isRecording = false
         recordingTimer.removeCallbacks(recordingTick)
-        refreshCompose()
     }
 
     private fun onRecordingComplete(file: File) {
@@ -283,49 +278,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ── Helpers ───────────────────────────────────────────────────────
-
-    /** Re-set Compose content to reflect changed state. */
-    private fun refreshCompose() {
-        binding.composeView.setContent {
-            CineShotTheme {
-                if (showSplash) {
-                    SplashScreen(onFinished = { showSplash = false })
-                } else {
-                    FilmGateScreen(
-                        isRecording = isRecording,
-                        recordingTimeSec = recordingTimeSec,
-                        viewportScale = composeScale,
-                        dollyIntensity = composeDollyIntensity,
-                        stabilizerLabel = composeStabLabel,
-                        dollyActive = composeDollyActive,
-                        onRecordToggle = { toggleRecording() },
-                        onPresetSelect = { idx -> executePreset(idx) },
-                        onDollyIntensity = { v ->
-                            composeDollyIntensity = v
-                            dollyController.intensity = v
-                        },
-                        onVertigoToggle = {
-                            if (dollyController.isVertigoActive) {
-                                dollyController.stopVertigo()
-                                composeDollyActive = false
-                            } else {
-                                dollyController.recalibrateReference()
-                                dollyController.startVertigo()
-                                composeDollyActive = true
-                            }
-                            refreshCompose()
-                        },
-                        onStabilizerCycle = {
-                            composeStabLabel = stabilizerController.cycleStrength().label
-                            refreshCompose()
-                        },
-                        onGrainToggle = { refreshCompose() },
-                        onLeakToggle = { refreshCompose() }
-                    )
-                }
-            }
-        }
-    }
 
     private fun tryStartCamera() {
         if (!allPermissionsGranted()) return
