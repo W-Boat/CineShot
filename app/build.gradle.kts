@@ -56,12 +56,8 @@ dependencies {
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.activity:activity-compose:1.8.2")
 
-    // CameraX
-    val cameraxVersion = "1.3.1"
-    implementation("androidx.camera:camera-core:${cameraxVersion}")
-    implementation("androidx.camera:camera-camera2:${cameraxVersion}")
-    implementation("androidx.camera:camera-lifecycle:${cameraxVersion}")
-    implementation("androidx.camera:camera-view:${cameraxVersion}")
+    // OpenCamera — Camera2 + OpenGL ES native engine
+    implementation("com.github.moo611:OpenCamera:1.0.7")
 
     // AndroidX
     implementation("androidx.core:core-ktx:1.12.0")
@@ -71,6 +67,6 @@ dependencies {
     // Material (View)
     implementation("com.google.android.material:material:1.11.0")
 
-    // ML Kit
+    // ML Kit — retained for future Dolly Zoom re-integration
     implementation("com.google.mlkit:face-detection:16.1.7")
 }

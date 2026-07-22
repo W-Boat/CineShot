@@ -6,13 +6,13 @@
     android:background="@android:color/black"
     android:keepScreenOn="true">
 
-    <!-- Camera preview (behind all Compose UI) -->
-    <com.cineshot.app.gl.CineGLSurfaceView
-        android:id="@+id/glSurfaceView"
+    <!-- OpenCamera native GL pipeline (Camera2 + OpenGL ES via C++) -->
+    <com.atech.glcamera.views.GLCameraView
+        android:id="@+id/glCameraView"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- Compose UI overlay (viewfinder, dials, buttons) -->
+    <!-- CineShot Compose UI overlay (viewfinder, dials, shutter) -->
     <androidx.compose.ui.platform.ComposeView
         android:id="@+id/composeView"
         android:layout_width="match_parent"
